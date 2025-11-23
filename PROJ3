@@ -1,0 +1,228 @@
+* PROJ3 SLINK MACRO
+PROJ3   START
+        B       102(0,15)
+        DC      17F'0'
+        DC      CL20'ASSEMBLED 20181030'
+        DC      CL10'TIME 13.35'
+        STM     14,12,12(13)
+        ST      13,4(0,15)
+        ST      15,8(0,13)
+        LR      13,15
+        USING   PROJ3,13
+*
+*        EQREG   MACRO AT IRS
+R0       EQU     0
+R1       EQU     1
+R2       EQU     2
+R3       EQU     3
+R4       EQU     4
+R5       EQU     5
+R6       EQU     6
+R7       EQU     7
+R8       EQU     8
+R9       EQU     9
+R10      EQU     10
+R11      EQU     11
+R12      EQU     12
+R13      EQU     13
+R14      EQU     14
+R15      EQU     15
+* PROCESS TICKLER FILE
+         OPEN   (TICKLER,(INPUT))
+         LA     R8,TICKTBL *POSITION IN TABLE
+         LR     R12,R8     *TABLE START ADDRESS
+         LA     R9,STATES  *STATE START ADDRESS
+LPTICK   GET    TICKLER
+         CR     R8,R9
+         BE     ERRLEAVE
+         MVC    0(5,R8),0(R1)
+         LA     R8,5(R8)
+         B      LPTICK
+ERRLEAVE EQU    *
+         L      13,4(13)
+         RETURN (14,12),RC=16
+*
+OSTART   CLOSE (TICKLER)
+         OPEN (INFILE,(INPUT),OUTFILE,(OUTPUT),ERRFILE,(OUTPUT))
+         LR   R11,R8           *END OF TABLE
+GETREC   EQU  *
+         GET  INFILE,INREC
+         AP   INCOUNT,=P'1'    *INCREMENT TOTAL COUNT
+         MVI  ERRTYPE,C'1'     *DEFAULT ERROR IS BLANKS
+         CLC  NAME(25),=CL25'' *COMPARE WITH BLANKS, BRANCH IF EQUAL
+         BE   ERRFOUND
+         CLC  ADRS(25),=CL25''
+         BE   ERRFOUND
+         CLC  CITY(15),=CL15''
+         BE   ERRFOUND
+         CLC  ACODE(3),=CL3''
+         BE   ERRFOUND
+         CLC  LNUM(7),=CL7''
+         BE   ERRFOUND
+         MVI  ERRTYPE,C'2'     *SET ERR TYPE TO NOT FOUND
+         LR   R8,R12           *START OF TABLE
+LPTF     CR   R8,R11           *CHECK IF END OF TABLE
+         BE   ERRFOUND         *IF NOT FOUND WRITE TO ERR
+         CLC  ACODE,0(R8)      *CHECK IF ACODE MATCHES
+         BE   CONVERT          *IF MATCHES CONVERT TO FULL
+         LA   R8,5(R8)         *MOVE TO NEXT TABLE EL
+         B    LPTF
+*
+CONVERT  EQU  *
+         LA   R4,51(0,0)
+         LR   R10,R9             *START OF STATES
+LCONV    CLC  3(2,R8),0(R10)
+         BE   CREATEO            *BR IF FOUND
+         LA   R10,22(R10)        *LOAD NEXT
+         BCT  R4,LCONV
+         B    ERRLEAVE
+*
+CREATEO  EQU  *
+         AP   OUTCOUNT,=P'1'   *INCREMENT OUT COUNT
+         MVC  ONAME,NAME       *MOVE DATA TO OUTPUT REC
+         MVC  OADRS,ADRS
+         MVC  OCITY,CITY
+         MVC  OACODE,ACODE
+         MVC  OLNUM,LNUM
+         MVC  SNAME,2(R10)
+         PUT  OUTFILE,OUTREC
+         B    GETREC
+*
+EXIT     L    13,4(13)
+*        RETURN MACRO
+         LM   14,12,12(13)
+         LA   15,0(0,0)
+         BR   14
+*CONSTANTS AND STORAGE
+INREC    DS   0CL75
+NAME     DS   CL25
+ADRS     DS   CL25
+CITY     DS   CL15
+ACODE    DS   CL3
+LNUM     DS   CL7
+*
+ERRREC   DS   0CL76
+ERRTYPE  DS   CL1
+RNAME    DS   CL25
+RADRS    DS   CL25
+RCITY    DS   CL15
+RACODE   DS   CL3
+RLNUM    DS   CL7
+*
+OUTREC   DS   0CL99
+FILL1    DC   CL4' '
+OACODE   DS   CL3
+OLNUM    DS   CL7
+ONAME    DS   CL25
+OADRS    DS   CL25
+OCITY    DS   CL15
+SNAME    DS   CL20
+*
+TINTXT   DC   C'TOTAL INPUT RECORDS  =    '
+TOUTTXT  DC   C'TOTAL OUTPUT RECORDS =    '
+TERRTXT  DC   C'TOTAL ERROR RECORDS  =    '
+MSGLEN   DC   AL2(L'TINTXT)
+MSGTEXT  DC   CL26''
+*
+INCOUNT  DC   PL2'0'
+OUTCOUNT DC   PL2'0'
+ERRCOUNT DC   PL2'0'
+ZCOUNT   DS   ZL3
+*
+EOFIN    EQU  *
+         CLOSE (INFILE,,OUTFILE,,ERRFILE)   
+         UNPK  ZCOUNT,INCOUNT               *UNPACK PACKED TO ZONED
+         OI    ZCOUNT+2,X'F0'               *CHANGE PREFIX TO F
+         MVC   TINTXT+23(3),ZCOUNT          *MOVE TO MESSAGE END
+         MVC   MSGTEXT(L'TINTXT),TINTXT
+         LA    R5,MSGLEN
+         WTO   TEXT=(R5)
+*
+         UNPK  ZCOUNT,OUTCOUNT
+         OI    ZCOUNT+2,X'F0'
+         MVC   TOUTTXT+23(3),ZCOUNT
+         MVC   MSGTEXT(L'TOUTTXT),TOUTTXT
+         LA    R5,MSGLEN
+         WTO   TEXT=(R5)
+*
+         UNPK  ZCOUNT,ERRCOUNT
+         OI    ZCOUNT+2,X'F0'
+         MVC   TERRTXT+23(3),ZCOUNT
+         MVC   MSGTEXT(L'TERRTXT),TERRTXT
+         LA    R5,MSGLEN
+         WTO   TEXT=(R5)
+         B     EXIT
+*
+ERRFOUND EQU   *
+         AP    ERRCOUNT,=P'1'   *INCREMENT ERR COUNT
+         MVC   RNAME,NAME       *MOVE DATA TO OUTPUT REC
+         MVC   RADRS,ADRS
+         MVC   RCITY,CITY
+         MVC   RACODE,ACODE
+         MVC   RLNUM,LNUM
+         PUT   ERRFILE,ERRREC    *WRITE RECORD TO ERROR FILE
+         CP    ERRCOUNT,=P'4'    *CHECK ERR COUNT
+         BE    ERRWTO            *IF ERROR COUNT = 4 BRANCH
+         B     GETREC            *ELSE MOVE ONTO NEXT REC
+*
+ERRWTO   EQU   *
+         WTO   'THIS RUN HAS A HIGH ERROR RATE'
+         B     GETREC * GO TO NEXT REC
+*
+TICKTBL  DC      200CL5' '
+STATES   DC      CL22'ALALABAMA             '
+         DC      CL22'AKALASKA              '
+         DC      CL22'AZARIZONA             '
+         DC      CL22'ARARKANSAS            '
+         DC      CL22'CACALIFORNIA          '
+         DC      CL22'COCOLORADO            '
+         DC      CL22'CTCONNECTICUT         '
+         DC      CL22'DEDELAWARE            '
+         DC      CL22'DCDISTRICT OF COLUMBIA'
+         DC      CL22'FLFLORIDA             '
+         DC      CL22'GAGEORGIA             '
+         DC      CL22'HIHAWAII              '
+         DC      CL22'IDIDAHO               '
+         DC      CL22'ILILLINOIS            '
+         DC      CL22'ININDIANA             '
+         DC      CL22'IAIOWA                '
+         DC      CL22'KSKANSAS              '
+         DC      CL22'KYKENTUCKY            '
+         DC      CL22'LALOUISIANA           '
+         DC      CL22'MEMAINE               '
+         DC      CL22'MDMARYLAND            '
+         DC      CL22'MAMASSACHUSETTS       '
+         DC      CL22'MIMICHIGAN            '
+         DC      CL22'MNMINNESOTA           '
+         DC      CL22'MSMISSISSIPPI         '
+         DC      CL22'MOMISSOURI            '
+         DC      CL22'MTMONTANA             '
+         DC      CL22'NENEBRASKA            '
+         DC      CL22'NVNEVADA              '
+         DC      CL22'NHNEW HAMPSHIRE       '
+         DC      CL22'NJNEW JERSEY          '
+         DC      CL22'NMNEW MEXICO          '
+         DC      CL22'NYNEW YORK            '
+         DC      CL22'NCNORTH CAROLINA      '
+         DC      CL22'NDNORTH DAKOTA        '
+         DC      CL22'OHOHIO                '
+         DC      CL22'OKOKLAHOMA            '
+         DC      CL22'OROREGON              '
+         DC      CL22'PAPENNSYLVANIA        '
+         DC      CL22'RIRHODE ISLAND        '
+         DC      CL22'SCSOUTH CAROLINA      '
+         DC      CL22'SDSOUTH DAKOTA        '
+         DC      CL22'TNTENNESSEE           '
+         DC      CL22'TXTEXAS               '
+         DC      CL22'UTUTAH                '
+         DC      CL22'VTVERMONT             '
+         DC      CL22'VAVIRGINIA            '
+         DC      CL22'WAWASHINGTON          '
+         DC      CL22'WVWEST VIRGINIA       '
+         DC      CL22'WIWISCONSIN           '
+         DC      CL22'WYWYOMING             '
+INFILE   DCB   DDNAME=INFILE,DSORG=PS,MACRF=GM,EODAD=EOFIN
+ERRFILE  DCB   DDNAME=ERRFILE,DSORG=PS,MACRF=PM
+OUTFILE  DCB   DDNAME=OUTFILE,DSORG=PS,MACRF=PM
+TICKLER  DCB   DDNAME=TICKLER,DSORG=PS,MACRF=GL,EODAD=OSTART
+         END   PROJ3
